@@ -23,16 +23,8 @@ void TrajectoryGenerator::parseInputParameters(const std::string& filename) {
 }
 
 //Constructor Vacío
-TrajectoryGenerator::TrajectoryGenerator(){ 
-    centroid = {0.0, 0.0, 0.0};
-    radius = 0;
-    height = 0;
-    inclination = 0;
-    resolution = 0;
-    start_position = 0;
-    end_position = 0;
-    speed = 0;
-}
+TrajectoryGenerator::TrajectoryGenerator()
+{}
 
 // Inicializa los miembros de la clase, la inclinación se convierte de grados a radianes
 TrajectoryGenerator::TrajectoryGenerator(const std::vector<double>& centroid_, double radius_, double height_, double inclination_, int resolution_, double start_position_, double end_position_, double speed_) {

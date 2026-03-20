@@ -43,14 +43,14 @@ public:
     void parseInputParameters(const std::string& filename);
 private: //Almacena los parámetros de entrada
 
-    std::vector<double> centroid;
-    double radius;
-    double height;
-    double inclination;
-    int resolution;
-    double speed;
-    double start_position; // Ángulo inicial en grados
-    double end_position; // Ángulo final en grados
+    std::vector<double> centroid {0.0, 0.0, 0.0};
+    double radius {0.0};
+    double height {0.0};
+    double inclination {0.0};
+    int resolution {0};
+    double speed {0.0};
+    double start_position {0.0}; // Ángulo inicial en grados
+    double end_position {0.0}; // Ángulo final en grados
     std::vector<double> initial_joint_positions;
 
     std::vector<Point> generated_points;
