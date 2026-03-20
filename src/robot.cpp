@@ -97,32 +97,6 @@ bool Robot::handleExecute() {
     roboticslab::SceneReconstructionIDL sceneReconstruction;
     sceneReconstruction.yarp().attachAsClient(rpc);
 
-    // Mover el robot al primer punto usando .txt
-    /*std::ifstream jointFile(jointsFile);
-    if (!jointFile.is_open()) {
-        std::cerr << "No se pudo abrir el archivo con los puntos de la trayectoria.\n";
-        return false;
-    }
-
-    std::vector<double> first_joint_pos(6);
-    int reachable;
-
-    // Leer el primer punto del archivo
-    std::string line;
-    if (std::getline(jointFile, line)) {
-        std::istringstream stream(line);
-        if (stream >> first_joint_pos[0] >> first_joint_pos[1] >> first_joint_pos[2] >> first_joint_pos[3] >> first_joint_pos[4] >> first_joint_pos[5] >> reachable) {
-            if (reachable == 1) {
-                std::cerr << "El primer punto es inalcanzable o tiene un formato incorrecto.\n";
-                return false;
-            }
-        }
-    }
-    else {
-        std::cerr << "El archivo está vacío o no tiene el formato esperado.\n";
-        return false;
-    }*/
-
     if (jointTrajectory.empty()) {
         std::cerr << "Error: No hay trayectoria calculada en memoria.\n";
         return false;
@@ -213,38 +187,7 @@ bool Robot::handleExecute() {
     io_service.stop();
     thread_group.join_all();
    
-    ////Guardar posiciones articulares durante la ejecución (metodo real) NO NOS FUNCIONÓ
-    //abb::egm::EGMControllerInterface egm_ctrl_interface(io_service, 6512); // Puerto para la lectura de posiciones
- 
-    ////Lectura de posiciones reales
-    //std::ofstream joint_positions_file("joint_positions.txt");
-    //if (!joint_positions_file.is_open()) {
-    //    std::cerr << "No se pudo abrir el archivo para escribir las posiciones articulares.\n";
-    //    return 1;
-    //}
-
-    //abb::egm::wrapper::Input input; //Almacena datos recibidos del robot
-    //while (true) { //Guarda posiciones articulares del robot
-    //    if (egm_ctrl_interface.waitForMessage(500)) {
-    //        egm_ctrl_interface.read(&input);
-    //        int sequence_number = input.header().sequence_number();
-
-    //        for (int i = 0; i < input.feedback().robot().joints().position().values_size(); ++i) {
-    //            joint_positions_file << input.feedback().robot().joints().position().values(i) << " ";
-    //        }
-    //        joint_positions_file << "\n";
-
-    //        std::cout << "Posiciones articulares: ";
-    //        for (int i = 0; i < input.feedback().robot().joints().position().values_size(); ++i) {
-    //            std::cout << input.feedback().robot().joints().position().values(i) << " ";
-    //        }
-    //        std::cout << "\n";
-    //    }
-    //}
-
-    //joint_positions_file.close();
-
-return true;
+    return true;
 }
 
 //Función que calcula la cinemática inversa
