@@ -1,0 +1,41 @@
+robot: "IRB1200"
+
+dh_parameters:
+  - a: 0
+    alpha: -90
+    d: 399.1
+    theta: 0
+  - a: 448
+    alpha: 0
+    d: 0
+    theta: -90
+  - a: 42
+    alpha: -90
+    d: 0
+    theta: 0
+  - a: 0
+    alpha: 90
+    d: 451
+    theta: 0
+  - a: 0
+    alpha: -90
+    d: 0
+    theta: 0
+  - a: 0
+    alpha: 0
+    d: 82
+    theta: 180
+    
+joint_limits:
+  - min: -170.0
+    max: 170.0
+  - min: -100.0
+    max: 130.0
+  - min: -200.0
+    max: 70.0
+  - min: -270.0
+    max: 270.0
+  - min: -130.0
+    max: 130.0
+  - min: -400.0
+    max: 400.0

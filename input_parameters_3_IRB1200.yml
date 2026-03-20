@@ -1,0 +1,12 @@
+# Subo la inclinación a 30 grados y bajo el radio para trazar la circunferencia entera maximizando el radio y con 30 grados de inclinación
+input_parameters:
+  centroid: [520.0, 0.0, 0.0]
+  radius: 270.0 #hasta 279 no colisiona
+  height: 20.0
+  inclination: 30.0
+  resolution: 100
+  speed: 20.0
+  start_position: 0
+  end_position: 360
+
+initial_joint_positions: [0, 83.83, -30.77, 180, -36.94, 180]

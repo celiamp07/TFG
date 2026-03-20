@@ -1,0 +1,41 @@
+robot: "GoFa"
+
+dh_parameters:
+  - a: 0
+    alpha: -90
+    d: 265
+    theta: 0
+  - a: 444
+    alpha: 0
+    d: 0
+    theta: -90
+  - a: 110
+    alpha: -90
+    d: 0
+    theta: 0
+  - a: 0
+    alpha: 90
+    d: 470
+    theta: 0
+  - a: 80
+    alpha: -90
+    d: 0
+    theta: 0
+  - a: 0
+    alpha: 0
+    d: 101
+    theta: 180
+    
+joint_limits:
+  - min: -180.0
+    max: 180.0
+  - min: -180.0
+    max: 180.0
+  - min: -225.0
+    max: 85.0
+  - min: -180.0
+    max: 180.0
+  - min: -180.0
+    max: 180.0
+  - min: -270.0
+    max: 270.0

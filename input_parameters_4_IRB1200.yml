@@ -1,0 +1,12 @@
+#Excede limites articulares
+input_parameters:
+  centroid: [520.0, 0.0, 0.0]
+  radius: 280.0
+  height: 20.0
+  inclination: 30.0
+  resolution: 100
+  speed: 20.0
+  start_position: 0
+  end_position: 360
+
+initial_joint_positions: [0, 83.83, -30.77, 180, -36.94, 180]

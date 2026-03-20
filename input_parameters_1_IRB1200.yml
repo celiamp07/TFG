@@ -1,0 +1,14 @@
+# Con inclinación 20 grados puede trazar la circunferencia de radio 300 mm sin problemas de alcance y colisiones. 
+# Al incrementar la inclinación ya surgen problemas de alcance
+# Inclinación 20 grados es poco para que la cámara pueda escanear el objeto?
+input_parameters:
+  centroid: [520.0, 0.0, 0.0]
+  radius: 300.0
+  height: 20.0
+  inclination: 20.0
+  resolution: 100
+  speed: 20.0
+  start_position: 0
+  end_position: 360
+
+initial_joint_positions: [0, 83.83, -30.77, 180, -36.94, 180]
