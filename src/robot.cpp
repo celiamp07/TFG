@@ -200,7 +200,7 @@ bool Robot::handleSolveIK(const std::vector<Point>& points, TrajectoryGenerator 
     for (const auto& dh : dh_params) {
         chain.addSegment(KDL::Segment(KDL::Joint(KDL::Joint::RotZ), KDL::Frame::DH(dh.a, dh.alpha * KDL::deg2rad, dh.d, dh.theta * KDL::deg2rad)));
     }
-    chain.addSegment(KDL::Segment(KDL::Joint(KDL::Joint::None), KDL::Frame(KDL::Vector(0,0,30))));
+    chain.addSegment(KDL::Segment(KDL::Joint(KDL::Joint::None), KDL::Frame(KDL::Rotation::RPY(deg2rad(0.0), deg2rad(90.0), deg2rad(0.0)),KDL::Vector(0,0,30))));
 
     // Solver de cinemática directa
     KDL::ChainFkSolverPos_recursive FKSolverPos(chain);
