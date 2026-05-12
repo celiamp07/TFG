@@ -1,11 +1,11 @@
 input_parameters:
-  centroid: [550.0, 0.0, 0.0]
+  centroid: [600.0, 0.0, 80.0]
   radius: 300.0
-  height: 185.0
+  height: 105.0
   inclination: 30.0
   resolution: 100
   speed: 20.0
-  start_position: 0
-  end_position: 360
+  start_position: -179
+  end_position: 179
 
-initial_joint_positions: [0, 60.86, -1.18, 0, 30.32, 0]
+initial_joint_positions: [0, 50.0, 10.0, 5.0, 45.0, 0]

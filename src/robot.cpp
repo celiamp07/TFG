@@ -287,7 +287,7 @@ bool Robot::handleSolveIK(const std::vector<Point>& points, TrajectoryGenerator 
         abb::egm::wrapper::trajectory::PointGoal* traj_point = trajectory.add_points();
 
         double angle = start_rad - atan2(point.y - centro[1], point.x - centro[0]);
-
+        
         // Verificar cada punto de la trayectoria 
         KDL::Frame desiredPose;
         desiredPose.p = KDL::Vector(point.x, point.y, point.z);
