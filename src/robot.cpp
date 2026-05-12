@@ -200,16 +200,9 @@ bool Robot::handleSolveIK(const std::vector<Point>& points, TrajectoryGenerator 
     for (const auto& dh : dh_params) {
         chain.addSegment(KDL::Segment(KDL::Joint(KDL::Joint::RotZ), KDL::Frame::DH(dh.a, dh.alpha * KDL::deg2rad, dh.d, dh.theta * KDL::deg2rad)));
     }
-    //chain.addSegment(KDL::Segment(KDL::Joint(KDL::Joint::None), KDL::Frame(KDL::Vector(0,0,30))));
-    //chain.addSegment(KDL::Segment(KDL::Joint(KDL::Joint::None), KDL::Frame(KDL::Rotation::RPY(0.0, M_PI / 2.0, 0.0), KDL::Vector(0.0, 0.0, 30.0))));
-    chain.addSegment(KDL::Segment(
-    KDL::Joint(KDL::Joint::None),
-    KDL::Frame(
-        KDL::Rotation::RPY(0.0, M_PI / 2.0, 0.0),
-        KDL::Vector(571.0, 0.0, 899.0)
-    )
-    ));
-
+    chain.addSegment(KDL::Segment(KDL::Joint(KDL::Joint::None), KDL::Frame(KDL::Vector(0,0,30))));
+    //chain.addSegment(KDL::Segment(KDL::Joint(KDL::Joint::None), KDL::Frame(KDL::Rotation::RPY(180.0*M_PI / 2.0, M_PI / 2.0, 0.0), KDL::Vector(0.0, 0.0, 30.0))));
+    
     // Solver de cinemática directa
     KDL::ChainFkSolverPos_recursive FKSolverPos(chain);
 
