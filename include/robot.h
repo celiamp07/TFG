@@ -30,6 +30,8 @@ class Robot {
 
         // Función para manejar la ejecución del movimiento del robot
         bool handleExecute();
+        bool Simultaneo(abb::egm::EGMTrajectoryInterface& egm_interface, boost::asio::serial_port& serial,int angle, int turning_time);
+        bool Secuencial(abb::egm::EGMTrajectoryInterface& egm_interface, boost::asio::serial_port& serial,int angle, int turning_time);
 
         // Función para manejar la resolución de la cinemática inversa con KDL
         bool handleSolveIK(const std::vector<Point>& points, TrajectoryGenerator MyTrajectory, bool debug);

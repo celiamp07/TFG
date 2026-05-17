@@ -3,6 +3,8 @@
 #include <algorithm>
 #include <iomanip>
 #include <thread>
+#include <string>
+#include <chrono>
 
 // Includes de KDL (Movidos del .h al .cpp para mejorar la compilación)
 #include <kdl/chain.hpp>
@@ -71,9 +73,86 @@ Robot::Robot(const std::string& RobotFile){
     parseJointLimits(RobotFile);
 }
 
+bool Robot::Simultaneo(abb::egm::EGMTrajectoryInterface& egm_interface, boost::asio::serial_port& serial, int angle, int turning_time) {
+    std::cout << "--- EJECUTANDO MODO SIMULTÁNEO ---\n";
+
+    // Reconstruimos el string usando el ángulo real 
+    std::string mensaje = "G" + std::to_string(angle) + "T" + std::to_string(turning_time) + "\n"; 
+    
+    if (serial.is_open()) {
+        std::cout << "Disparando plataforma giratoria: " << mensaje;
+        boost::asio::write(serial, boost::asio::buffer(mensaje.c_str(), mensaje.size()));
+    }
+    
+    // El robot arranca la trayectoria circular
+    egm_interface.addTrajectory(this->trajectory); 
+
+    abb::egm::wrapper::trajectory::ExecutionProgress execution_progress;
+    bool wait = true;
+    while (wait) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        if (egm_interface.retrieveExecutionProgress(&execution_progress)) { 
+            wait = execution_progress.goal_active(); 
+        }
+    }
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+    return true;
+}
+
+bool Robot::Secuencial(abb::egm::EGMTrajectoryInterface& egm_interface, boost::asio::serial_port& serial, int angle, int turning_time) {
+    std::cout << "--- EJECUTANDO MODO SECUENCIAL ---\n";
+
+    // El robot arranca la trayectoria circular por el semicírculo
+    egm_interface.addTrajectory(this->trajectory); 
+
+    // Esperamos en C++ a que el GoFa llegue físicamente al final de los 180°
+    abb::egm::wrapper::trajectory::ExecutionProgress execution_progress;
+    bool wait = true;
+    while (wait) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        if (egm_interface.retrieveExecutionProgress(&execution_progress)) { 
+            wait = execution_progress.goal_active(); 
+        }
+    }
+    std::cout << "El robot GoFa ha alcanzado el punto final de la trayectoria.\n";
+
+    if (serial.is_open()) {
+        std::string mensaje = "G" + std::to_string(angle) + "T" + std::to_string(turning_time) + "\n";
+        std::cout << "Disparando plataforma secuencialmente: " << mensaje;
+        boost::asio::write(serial, boost::asio::buffer(mensaje.c_str(), mensaje.size()));
+
+        // Sincronizamos el hilo de C++ con el tiempo de giro de la mesa de Arduino
+        std::cout << "Esperando a que la plataforma termine de girar (" << turning_time << " ms)...\n";
+        std::this_thread::sleep_for(std::chrono::milliseconds(turning_time));
+        std::cout << "Giro de la plataforma completado.\n";
+    }
+    return true;
+}
+
 //Función que conecta con el robot
 bool Robot::handleExecute() {
-    std::cout << "Presione Enter para continuar y mover el robot al primer punto de la trayectoria..." << std::endl;
+    int angle = 0;
+    int turning_time = 0;
+    int modo_180 = 1; // 1: A la vez, 2: Primero robot, luego plataforma
+
+    std::cout << "Ingrese el número de grados para la plataforma giratoria: ";
+    std::cin >> angle;
+    std::cout << "Ingrese el tiempo de giro en milisegundos: ";
+    std::cin >> turning_time;
+
+    if (std::abs(angle) == 180) {
+        std::cout << "¿Cómo quiere realizar el escaneo de 180 grados?\n";
+        std::cout << " [1] Movimiento simultáneo (Robot y plataforma a la vez)\n";
+        std::cout << " [2] Movimiento secuencial (Primero el robot completa su trayectoria, luego gira la plataforma)\n";
+        std::cout << "Seleccione una opción: ";
+        std::cin >> modo_180;
+    }
+
+    std::cin.clear();
+    std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+
+    std::cout << "\nPresione Enter para continuar y conectar los sistemas..." << std::endl;
     std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
 
     // Iniciar YARP server
@@ -100,6 +179,22 @@ bool Robot::handleExecute() {
     if (jointTrajectory.empty()) {
         std::cerr << "Error: No hay trayectoria calculada en memoria.\n";
         return false;
+    }
+
+    // Configuración del puerto Serie de Arduino 
+    std::string mensaje_arduino = "G" + std::to_string(angle) + "T" + std::to_string(turning_time) + "\n";
+    boost::asio::io_service io_serial;
+    boost::asio::serial_port serial(io_serial);
+    bool arduino_ok = false;
+
+    try {
+        serial.open("/dev/ttyACM0");
+        serial.set_option(boost::asio::serial_port_base::baud_rate(9600));
+        std::this_thread::sleep_for(std::chrono::seconds(2)); // Espera de inicialización del Arduino
+        arduino_ok = true;
+        std::cout << "Puerto serie conectado a la plataforma.\n";
+    } catch (boost::system::system_error& e) {
+        std::cerr << "Advertencia/Error de Puerto Serie: " << e.what() << ". El script continuará sin plataforma física.\n";
     }
 
     // Comunicación EGM para mover al primer punto
@@ -156,32 +251,30 @@ bool Robot::handleExecute() {
     while (!egm_interface.isConnected()) {
         std::this_thread::sleep_for(std::chrono::milliseconds(500));
     }
-
-    std::cout << "Enviando trayectoria circular...\n";
     
-   // Enviamos el objeto 'trajectory'
-    if (this->trajectory.points_size() > 0) {
-        egm_interface.addTrajectory(this->trajectory);
-    } else {
-        std::cerr << "Error: La trayectoria circular está vacía en memoria.\n";
-        return false;
-    }
-
-    // Activamos la cámara justo antes de empezar el movimiento circular
+    //Activamos la cámara
     sceneReconstruction.resume(); 
-    
-    wait = true;
-    while (wait) {
-        std::this_thread::sleep_for(std::chrono::milliseconds(500));
-        if (egm_interface.retrieveExecutionProgress(&execution_progress)) {
-            wait = execution_progress.goal_active();
-        }
+
+    //Para activar los dos modos de funcionamiento
+    if (std::abs(angle) == 360 || (std::abs(angle) == 180 && modo_180 == 1)) {
+        Simultaneo(egm_interface, serial, angle, turning_time);
+    } else if (std::abs(angle) == 180 && modo_180 == 2) {
+        Secuencial(egm_interface, serial, angle, turning_time);
     }
 
-    std::cout << "Trayectoria finalizada.\n";
-    
     // Pausamos la reconstrucción al terminar
     sceneReconstruction.pause(); 
+
+    // Lectura final de respuesta del Arduino
+    if (arduino_ok) {
+        char response_buf[128];
+        try {
+            size_t n = serial.read_some(boost::asio::buffer(response_buf, sizeof(response_buf) - 1));
+            response_buf[n] = '\0';
+            std::cout << "Respuesta de Arduino: " << response_buf << std::endl;
+        } catch (...) {}
+        serial.close();
+    }
 
     // APAGADO LIMPIO
     io_service.stop();
@@ -200,8 +293,8 @@ bool Robot::handleSolveIK(const std::vector<Point>& points, TrajectoryGenerator 
     for (const auto& dh : dh_params) {
         chain.addSegment(KDL::Segment(KDL::Joint(KDL::Joint::RotZ), KDL::Frame::DH(dh.a, dh.alpha * KDL::deg2rad, dh.d, dh.theta * KDL::deg2rad)));
     }
-    //chain.addSegment(KDL::Segment(KDL::Joint(KDL::Joint::None), KDL::Frame(KDL::Vector(0,0,30))));
-    chain.addSegment(KDL::Segment(KDL::Joint(KDL::Joint::None), KDL::Frame(KDL::Rotation::RotY(M_PI_2), KDL::Vector(0.0, 0.0, 30.0))));
+    chain.addSegment(KDL::Segment(KDL::Joint(KDL::Joint::None), KDL::Frame(KDL::Vector(0,0,30))));
+    //chain.addSegment(KDL::Segment(KDL::Joint(KDL::Joint::None), KDL::Frame(KDL::Rotation::RotY(M_PI_2), KDL::Vector(0.0, 0.0, 30.0))));
     
     // Solver de cinemática directa
     KDL::ChainFkSolverPos_recursive FKSolverPos(chain);
