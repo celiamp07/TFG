@@ -131,15 +131,28 @@ bool Robot::Secuencial(abb::egm::EGMTrajectoryInterface& egm_interface, boost::a
 }
 
 //Función que conecta con el robot
-bool Robot::handleExecute() {
+bool Robot::handleExecute(double speed_) {
     int angle = 0;
+    double velocidad_robot = speed_; // En mm/s
+    const float radio_circun = 300.0;
     int turning_time = 0;
     int modo_180 = 1; // 1: A la vez, 2: Primero robot, luego plataforma
 
-    std::cout << "Ingrese el número de grados para la plataforma giratoria: ";
+    std::cout << "Introduce el angulo de la plataforma (180 o 360): ";
     std::cin >> angle;
-    std::cout << "Ingrese el tiempo de giro en milisegundos: ";
-    std::cin >> turning_time;
+    std::cout << "La velocidad del robot es: " <<velocidad_robot;
+
+    if (velocidad_robot <= 0) {
+        std::cout << "Error: La velocidad debe ser mayor que 0. Fijando por defecto a 20 mm/s.\n";
+        velocidad_robot = 20.0;
+    }
+
+    //Calculo del turning_time
+    float distancia = (std::abs(angle) * M_PI * radio_circun) / 180.0;
+    turning_time = static_cast<int>((distancia / velocidad_robot) * 1000.0);
+
+    std::cout << "Distancia estimada del robot: " << distancia << " mm\n";
+    std::cout << "Tiempo calculado para la plataforma: " << turning_time << " ms\n";
 
     if (std::abs(angle) == 180) {
         std::cout << "¿Cómo quiere realizar el escaneo de 180 grados?\n";
