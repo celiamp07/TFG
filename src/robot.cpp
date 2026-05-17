@@ -134,7 +134,7 @@ bool Robot::Secuencial(abb::egm::EGMTrajectoryInterface& egm_interface, boost::a
 bool Robot::handleExecute(double speed_) {
     int angle = 0;
     double velocidad_robot = speed_; // En mm/s
-    const float radio_circun = 300.0;
+    const float radio_circun = 350.0;
     int turning_time = 0;
     int modo_180 = 1; // 1: A la vez, 2: Primero robot, luego plataforma
 
