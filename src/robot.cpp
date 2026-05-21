@@ -131,10 +131,10 @@ bool Robot::Secuencial(abb::egm::EGMTrajectoryInterface& egm_interface, boost::a
 }
 
 //Función que conecta con el robot
-bool Robot::handleExecute(double speed_) {
+bool Robot::handleExecute(double speed_,double radius_) {
     int angle = 0;
     double velocidad_robot = speed_; // En mm/s
-    const float radio_circun = 350.0;
+    const float radio_circun = radius_;
     int turning_time = 0;
     int modo_180 = 1; // 1: A la vez, 2: Primero robot, luego plataforma
 
@@ -167,7 +167,7 @@ bool Robot::handleExecute(double speed_) {
 
     std::cout << "\nPresione Enter para continuar y conectar los sistemas..." << std::endl;
     std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
-
+    std::cout<<"hola"<<std::endl;
     // Iniciar YARP server
     yarp::os::Network yarp;
 
@@ -232,6 +232,7 @@ bool Robot::handleExecute(double speed_) {
 
     // Verifica que el robot esté conectado antes de enviar la trayectoria 
     while (!egm_interface.isConnected()) {
+        std::cout << "intento\n";
         std::this_thread::sleep_for(std::chrono::milliseconds(500));// Si no está conectado, el hilo descansa durante 500 ms antes de volver a verificar
     }
 
@@ -306,7 +307,7 @@ bool Robot::handleSolveIK(const std::vector<Point>& points, TrajectoryGenerator 
     for (const auto& dh : dh_params) {
         chain.addSegment(KDL::Segment(KDL::Joint(KDL::Joint::RotZ), KDL::Frame::DH(dh.a, dh.alpha * KDL::deg2rad, dh.d, dh.theta * KDL::deg2rad)));
     }
-    chain.addSegment(KDL::Segment(KDL::Joint(KDL::Joint::None), KDL::Frame(KDL::Vector(0,0,30))));
+    chain.addSegment(KDL::Segment(KDL::Joint(KDL::Joint::None), KDL::Frame(KDL::Vector(16.5,0,26))));
     //chain.addSegment(KDL::Segment(KDL::Joint(KDL::Joint::None), KDL::Frame(KDL::Rotation::RotY(M_PI_2), KDL::Vector(0.0, 0.0, 30.0))));
     
     // Solver de cinemática directa
