@@ -26,7 +26,6 @@ public:
     std::vector <Point> handleGenerate(bool debug);
     // Función para manejar el ploteo de datos de la trayectoria
     bool handlePlot(const std::string& filename = "");
-    bool loadDataPlot(const std::string& filename, std::vector<Point>& points);
 
     //GETS
     std::vector<double> getCentroid() const { return centroid; }

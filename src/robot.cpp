@@ -367,8 +367,9 @@ bool Robot::handleSolveIK(const std::vector<Point>& points, TrajectoryGenerator 
     KDL::ChainIkSolverPos_NR_JL IKSolverPos(chain, q_min, q_max, FKSolverPos, IKSolverVel, 200000, 0.001);
 
     //  Limpieza de los atributos de la clase antes de empezar
-    trajectory.Clear();       // El objeto TrajectoryGoal de la clase
-    jointTrajectory.clear();  // El vector de vectores de la clase
+    trajectory.Clear();       
+    jointTrajectory.clear();  
+    jointFlags.clear();
 
     if (points.empty()) {
         std::cerr << "No hay puntos de trayectoria en memoria." << std::endl;
@@ -447,6 +448,7 @@ bool Robot::handleSolveIK(const std::vector<Point>& points, TrajectoryGenerator 
         
         traj_point->set_duration(point_duration);
         jointTrajectory.push_back(current_joints_deg);
+        jointFlags.push_back(error_indicator);
 
         if (debug) {
             std::cout << "Punto (" << point.x << ", " << point.y << ", " << point.z << ") OK." << std::endl;
@@ -483,54 +485,6 @@ bool Robot::handleSolveIK(const std::vector<Point>& points, TrajectoryGenerator 
     }
 }
 
-
-// Función para leer datos desde un archivo y devolver vectores de datos -> Para hacer el plot_joints
-void Robot::loadDataPlotJoints(const std::string& filename, std::vector<std::vector<double>>& datos, std::vector<double>& flags, bool debug) {
-
-    std::ifstream file(filename);
-    if (!file.is_open()) {
-        std::cerr << "No se pudo abrir el archivo: " << filename << std::endl;
-        return;
-    }
-
-    std::string line;
-    while (std::getline(file, line)) {
-        std::stringstream ss(line);
-        double a1, a2, a3, a4, a5, a6, flag;
-        ss >> a1 >> a2 >> a3 >> a4 >> a5 >> a6 >> flag;
-        
-        if (flag == 0) {  // Si el punto es alcanzable
-            datos[0].push_back(a1);
-            datos[1].push_back(a2);
-            datos[2].push_back(a3);
-            datos[3].push_back(a4);
-            datos[4].push_back(a5);
-            datos[5].push_back(a6);
-        }
-        else {  // Si el punto tiene error, agregar el valor capado
-            datos[0].push_back(a1);
-            datos[1].push_back(a2);
-            datos[2].push_back(a3);
-            datos[3].push_back(a4);
-            datos[4].push_back(a5);
-            datos[5].push_back(a6);
-        }
-        flags.push_back(flag);
-    }
-
-    file.close();
-
-    // Mensaje de depuración
-    if (debug) {
-        std::cout << "Datos leídos del archivo:" << std::endl;
-        for (size_t i = 0; i < datos[0].size(); ++i) {
-            std::cout << datos[0][i] << " " << datos[1][i] << " " << datos[2][i] << " "
-                << datos[3][i] << " " << datos[4][i] << " " << datos[5][i] << " " << flags[i] << std::endl;
-        }
-    }
-    
-}
-
 // Función para trazar los puntos
 bool Robot::handlePlotJoints(TrajectoryGenerator MyTrajectory, bool debug, const std::string& filename) {
     
@@ -539,10 +493,19 @@ bool Robot::handlePlotJoints(TrajectoryGenerator MyTrajectory, bool debug, const
     std::cout << "Generando gráfico..." << std::endl;
     
     //Gráficos de KDL
-    std::vector<std::vector<double>> datos(6); // Vector de vectores para almacenar datos de cada articulación
-    std::vector<double> flags;
+    std::vector<std::vector<double>> datos(6);
+    std::vector<double> flags = jointFlags;
 
-    loadDataPlotJoints("kdl_joint_positions.txt", datos, flags, debug);
+    if (jointTrajectory.empty()) {
+        std::cerr << "No hay datos articulares almacenados. Ejecuta primero la cinemática inversa." << std::endl;
+        return false;
+    }
+
+    for (size_t i = 0; i < jointTrajectory.size(); ++i) {
+        for (int j = 0; j < 6; ++j) {
+            datos[j].push_back(jointTrajectory[i][j]);
+        }
+    }
 
     double point_duration = MyTrajectory.calculatePointDuration();
 

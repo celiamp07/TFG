@@ -154,45 +154,15 @@ void TrajectoryGenerator::readFromConsole() {
     std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
 }
 
-// Función para cargar los puntos desde el archivo txt -> Para hacer el plot
-bool TrajectoryGenerator::loadDataPlot(const std::string& filename, std::vector<Point>& points) {
-    std::ifstream file(filename);
-    if (!file.is_open()) {
-        std::cerr << "Error: No se pudo abrir el archivo " << filename << std::endl;
-        return false;
-    }
-
-    std::string line;
-    while (std::getline(file, line)) {
-        std::istringstream stream(line);
-        Point p;
-        if (stream >> p.x >> p.y >> p.z) {
-            points.push_back(p);
-        }
-        else {
-            std::cerr << "Línea con formato incorrecto: " << line << std::endl;
-        }
-    }
-
-    file.close();
-    return true;
-}
-
 // Función para trazar los puntos
 bool TrajectoryGenerator::handlePlot(const std::string& filename) {
     std::cout << "Presione Enter para continuar y ver el gráfico de los puntos generados..." << std::endl;
     std::cin.get();
     std::cout << "Generando gráfico..." << std::endl;
     
-    std::vector<Point> trajectory_points;
-    if (!loadDataPlot("trajectory_points.txt", trajectory_points)) {
-        std::cerr << "Error: No se encontraron puntos en el archivo." << std::endl;
-        return false;
-    }
-
     std::vector<double> x, y, z;
 
-    for (const auto& point : trajectory_points) {
+    for (const auto& point : generated_points) {
         x.push_back(point.x);
         y.push_back(point.y);
         z.push_back(point.z);

@@ -38,13 +38,13 @@ class Robot {
 
         // Función para manejar el ploteo de las articulaciones
         bool handlePlotJoints(TrajectoryGenerator MyTrajectory,bool debug, const std::string& filename = "");
-        void loadDataPlotJoints(const std::string& filename, std::vector<std::vector<double>>& datos, std::vector<double>& flags, bool debug);
         //void verificarLimitesArticulares(std::vector<std::vector<double>>& datos, const std::vector<JointLimits>& joint_limits);
 
     private: 
         std::vector<DHParameters> dh_params;
         std::vector<JointLimits> joint_limits;
         std::vector<std::vector<double>> jointTrajectory;
+        std::vector<double> jointFlags;
         void parseDHParameters(const std::string& filename);
         void parseJointLimits(const std::string& filename);
         abb::egm::wrapper::trajectory::TrajectoryGoal trajectory;
