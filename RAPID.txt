@@ -1,0 +1,101 @@
+MODULE Module1
+    ! Variables y configuracin inicial
+    ! Identifier for the EGM correction
+    LOCAL VAR egmident egm_id;
+    ! The work object. Base Frame
+    LOCAL PERS wobjdata egm_wobj := [FALSE,TRUE,"",[[0,0,0],[1,0,0,0]],[[0,0,0],[1,0,0,0]]];
+    ! Limits for convergence
+    ! Orientation: +-0.1 degrees
+    LOCAL CONST egm_minmax egm_condition_orient := [-0.1, 0.1];
+
+    ! Description:                                         !
+    ! Externally Guided motion (EGM): Control - Main Cycle !
+    ! Procedimiento principal
+    PROC Main()
+        WHILE TRUE DO
+            ! Move to the starting position
+            MoveAbsJ [[0,0,0,0,0,0],[9E+09,9E+09,9E+09,9E+09,9E+09,9E+09]], v100, fine, tool0\WObj:=wobj0;
+            TPWrite "DEBUG: Robot en home, llamando EGM_JOINT_CONTROL";
+
+            ! EGM Joint Orientation Control
+            EGM_JOINT_CONTROL;
+
+            TPWrite "DEBUG: EGM_JOINT_CONTROL retornd. Esperando 3s antes del siguiente ciclo.";
+            WaitTime 3;
+        ENDWHILE
+    ENDPROC
+
+    ! Control EGM
+    PROC EGM_JOINT_CONTROL()
+        VAR egmstate egmSt1;
+        VAR egmstate egmSt2;
+        VAR jointtarget jt;
+
+        ! Release the EGM id.
+        EGMReset egm_id;
+
+        ! Register an EGM id.
+        EGMGetId egm_id;
+
+        ! Estado EGM justo despus de GetId (debera ser DISCONNECTED o CONNECTED)
+        egmSt1 := EGMGetState(egm_id);
+        TPWrite "DEBUG: Estado EGM tras GetId: " \Num:=egmSt1;
+
+        ! Setup the EGM communication.
+        EGMSetupUC ROB_1, egm_id, "default", "ROB_1", \Joint;
+
+        ! Estado EGM tras SetupUC (debera ser CONNECTED=2 o RUNNING=3)
+        egmSt1 := EGMGetState(egm_id);
+        TPWrite "DEBUG: Estado EGM tras SetupUC: " \Num:=egmSt1;
+
+        ! Prepare for an EGM communication session.
+        EGMActJoint egm_id
+                    \J1:=egm_condition_orient
+                    \J2:=egm_condition_orient
+                    \J3:=egm_condition_orient
+                    \J4:=egm_condition_orient
+                    \J5:=egm_condition_orient
+                    \J6:=egm_condition_orient
+                    \MaxSpeedDeviation:=20.0;
+
+        ! Estado EGM tras ActJoint (debera ser RUNNING=3)
+        egmSt1 := EGMGetState(egm_id);
+        TPWrite "DEBUG: Estado EGM tras ActJoint: " \Num:=egmSt1;
+
+        ! Posicion actual de articulaciones ANTES de EGMRunJoint
+        jt := CJointT();
+        TPWrite "DEBUG: J1 antes de EGM: " \Num:=jt.robax.rax_1;
+        TPWrite "DEBUG: J2 antes de EGM: " \Num:=jt.robax.rax_2;
+        TPWrite "DEBUG: J3 antes de EGM: " \Num:=jt.robax.rax_3;
+
+        ! Start the EGM communication session
+        ! NOTA: CondTime=30 para dar tiempo al PC a enviar la trayectoria circular
+        TPWrite "DEBUG: Iniciando EGMRunJoint (CondTime=30)...";
+        EGMRunJoint egm_id, EGM_STOP_HOLD, \J1 \J2 \J3 \J4 \J5 \J6 \CondTime:=30 \RampOutTime:=10;
+
+        ! Si llegamos aqui, EGMRunJoint retorno
+        egmSt2 := EGMGetState(egm_id);
+        TPWrite "DEBUG: EGMRunJoint retorn. Estado: " \Num:=egmSt2;
+
+        ! Posicion de articulaciones DESPUES de EGMRunJoint (deberia haber cambiado)
+        jt := CJointT();
+        TPWrite "DEBUG: J1 despus de EGM: " \Num:=jt.robax.rax_1;
+        TPWrite "DEBUG: J2 despus de EGM: " \Num:=jt.robax.rax_2;
+        TPWrite "DEBUG: J3 despus de EGM: " \Num:=jt.robax.rax_3;
+
+        ! CAMBIO: Se pospone el Reset para que el robot aguante quieto con los motores fijos durante el giro de la plataforma
+        WaitTime 15;
+
+        ! Release the EGM id
+        EGMReset egm_id;
+
+    ERROR
+        IF ERRNO = ERR_UDPUC_COMM THEN
+            TPWrite "Communication timeout: EGM (ERR_UDPUC_COMM)";
+            TRYNEXT;
+        ELSE
+            TPWrite "ERROR en EGM_JOINT_CONTROL: " \Num:=ERRNO;
+            TRYNEXT;
+        ENDIF
+    ENDPROC
+ENDMODULE

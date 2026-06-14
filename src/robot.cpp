@@ -76,25 +76,46 @@ Robot::Robot(const std::string& RobotFile){
 bool Robot::Simultaneo(abb::egm::EGMTrajectoryInterface& egm_interface, boost::asio::serial_port& serial, int angle, int turning_time) {
     std::cout << "--- EJECUTANDO MODO SIMULTÁNEO ---\n";
 
-    // Reconstruimos el string usando el ángulo real 
-    std::string mensaje = "G" + std::to_string(angle) + "T" + std::to_string(turning_time) + "\n"; 
-    
-    if (serial.is_open()) {
-        std::cout << "Disparando plataforma giratoria: " << mensaje;
-        boost::asio::write(serial, boost::asio::buffer(mensaje.c_str(), mensaje.size()));
-    }
-    
-    // El robot arranca la trayectoria circular
-    egm_interface.addTrajectory(this->trajectory); 
-
+    // Diagnóstico inicial: imprimir el estado completo del EGMTrajectoryInterface
+    // antes de entrar en el bucle de espera.
+    // state: 0=UNDEFINED 1=NORMAL 2=RAMP_DOWN 3=STATIC_GOAL
+    // sub_state: 0=NONE 1=RUNNING 2=FINISHED
     abb::egm::wrapper::trajectory::ExecutionProgress execution_progress;
+    if (egm_interface.retrieveExecutionProgress(&execution_progress)) {
+        std::cout << "[DEBUG] Estado inicial EGM:"
+                  << " state=" << execution_progress.state()
+                  << " sub_state=" << execution_progress.sub_state()
+                  << " goal_active=" << execution_progress.goal_active()
+                  << " has_active_trajectory=" << execution_progress.has_active_trajectory()
+                  << " isConnected=" << egm_interface.isConnected() << "\n";
+    } else {
+        std::cout << "[DEBUG] Estado inicial: sin datos de progreso aún\n";
+    }
+    std::cout.flush();
+
+    // Bucle de espera. Imprime estado completo las primeras 10 iteraciones y cada 20.
+    int loop_count = 0;
     bool wait = true;
     while (wait) {
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
-        if (egm_interface.retrieveExecutionProgress(&execution_progress)) { 
-            wait = execution_progress.goal_active(); 
+        std::this_thread::sleep_for(std::chrono::milliseconds(500));
+        loop_count++;
+        bool got = egm_interface.retrieveExecutionProgress(&execution_progress);
+        if (loop_count <= 10 || loop_count % 20 == 0) {
+            std::cout << "[DEBUG] Iter " << loop_count
+                      << " got=" << got
+                      << " state=" << (got ? (int)execution_progress.state() : -1)
+                      << " sub_state=" << (got ? (int)execution_progress.sub_state() : -1)
+                      << " goal_active=" << (got ? execution_progress.goal_active() : false)
+                      << " has_traj=" << (got ? execution_progress.has_active_trajectory() : false)
+                      << " connected=" << egm_interface.isConnected() << "\n";
+            std::cout.flush();
+        }
+        if (got) {
+            wait = execution_progress.goal_active();
         }
     }
+    std::cout << "[DEBUG] Trayectoria completada tras " << loop_count << " iteraciones\n";
+    std::cout.flush();
 
     std::this_thread::sleep_for(std::chrono::milliseconds(1000));
     return true;
@@ -103,16 +124,13 @@ bool Robot::Simultaneo(abb::egm::EGMTrajectoryInterface& egm_interface, boost::a
 bool Robot::Secuencial(abb::egm::EGMTrajectoryInterface& egm_interface, boost::asio::serial_port& serial, int angle, int turning_time) {
     std::cout << "--- EJECUTANDO MODO SECUENCIAL ---\n";
 
-    // El robot arranca la trayectoria circular por el semicírculo
-    egm_interface.addTrajectory(this->trajectory); 
-
-    // Esperamos en C++ a que el GoFa llegue físicamente al final de los 180°
+    // La trayectoria circular ya fue encolada junto con el primer punto en handleExecute.
     abb::egm::wrapper::trajectory::ExecutionProgress execution_progress;
     bool wait = true;
     while (wait) {
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
-        if (egm_interface.retrieveExecutionProgress(&execution_progress)) { 
-            wait = execution_progress.goal_active(); 
+        std::this_thread::sleep_for(std::chrono::milliseconds(500));
+        if (egm_interface.retrieveExecutionProgress(&execution_progress)) {
+            wait = execution_progress.goal_active();
         }
     }
     std::cout << "El robot GoFa ha alcanzado el punto final de la trayectoria.\n";
@@ -170,24 +188,38 @@ bool Robot::handleExecute(double speed_,double radius_) {
     std::cout<<"hola"<<std::endl;
     // Iniciar YARP server
     yarp::os::Network yarp;
+    bool yarp_ok = false;
 
     if (!yarp::os::Network::checkNetwork())
     {
         std::cerr << "No se pudo conectar al servidor de YARP\n";
-        
+    }
+    else
+    {
+        yarp_ok = true;
     }
 
     // Abrir un puerto y conectarse a servicio externo
     yarp::os::RpcClient rpc;
 
-    if (!rpc.open("/trajectory_generator_node/rpc:c") || !yarp::os::Network::connect(rpc.getName(), "/sceneReconstruction/rpc:s"))
+    if (yarp_ok)
     {
-        std::cerr<< "No se pudo establecer la conexión con el servidor de recostrucción\n";
-       
+        if (!rpc.open("/trajectory_generator_node/rpc:c") || !yarp::os::Network::connect(rpc.getName(), "/sceneReconstruction/rpc:s"))
+        {
+            std::cerr << "No se pudo establecer la conexión con el servidor de reconstrucción\n";
+            yarp_ok = false;
+        }
+        else
+        {
+            std::cout << "[DEBUG] YARP conectado correctamente\n";
+        }
     }
 
     roboticslab::SceneReconstructionIDL sceneReconstruction;
-    sceneReconstruction.yarp().attachAsClient(rpc);
+    if (yarp_ok)
+    {
+        sceneReconstruction.yarp().attachAsClient(rpc);
+    }
 
     if (jointTrajectory.empty()) {
         std::cerr << "Error: No hay trayectoria calculada en memoria.\n";
@@ -215,7 +247,11 @@ bool Robot::handleExecute(double speed_,double radius_) {
     boost::asio::io_service io_service;
     boost::thread_group thread_group;
 
-    // Configura la interfaz EGM para comunicarse con el robot 
+    // work evita que io_service.run() retorne cuando no hay operaciones pendientes,
+    // lo que dejaría EGM sin hilo activo entre la primera y la segunda trayectoria.
+    auto io_work = std::make_shared<boost::asio::io_service::work>(io_service);
+
+    // Configura la interfaz EGM para comunicarse con el robot
     abb::egm::EGMTrajectoryInterface egm_interface(io_service, 6510);// Asignar  aquí el número de puerto correcto
 
     // Verifica que la interfaz de EGM se haya inicializado correctamente
@@ -226,50 +262,72 @@ bool Robot::handleExecute(double speed_,double radius_) {
     else {
         std::cout << "La interfaz EGM se ha inicializado correctamente\n";
     };
-    
-    // Crea un hilo para ejecutar io_service
+
+    // Crea un hilo para ejecutar io_service (uno es suficiente: io_work lo mantiene vivo)
     thread_group.create_thread(boost::bind(&boost::asio::io_service::run, &io_service));
 
-    // Verifica que el robot esté conectado antes de enviar la trayectoria 
+    // DEBUG: esperar a que EGM reciba el primer paquete UDP del robot
+    // Si imprime "intento" indefinidamente, el robot no está enviando paquetes EGM
+    // (comprobar IP/puerto en RobotStudio: Remote Address 192.168.1.38, Remote Port 6510)
+    std::cout << "[DEBUG] EGM escuchando en puerto 6510. Esperando conexión del robot...\n";
+    std::cout.flush();
     while (!egm_interface.isConnected()) {
         std::cout << "intento\n";
-        std::this_thread::sleep_for(std::chrono::milliseconds(500));// Si no está conectado, el hilo descansa durante 500 ms antes de volver a verificar
+        std::cout.flush();
+        std::this_thread::sleep_for(std::chrono::milliseconds(500));
     }
+    std::cout << "[DEBUG] EGM conectado (primer paquete recibido del robot)\n";
+    std::cout.flush();
 
-    // Mover al primer punto
+    // Construir trayectoria combinada: primer punto (5s) + trayectoria circular.
+    // Se encola TODO en un único addTrajectory para evitar que el EGMTrajectoryInterface
+    // cierre la sesión entre trayectorias y ya no acepte nuevos objetivos.
     std::vector<double> first_joint_pos = jointTrajectory[0];
-    abb::egm::wrapper::trajectory::TrajectoryGoal initial_trajectory;
-    abb::egm::wrapper::trajectory::PointGoal* initial_point = initial_trajectory.add_points();
+    abb::egm::wrapper::trajectory::TrajectoryGoal combined_trajectory;
 
+    // Punto inicial (mover al inicio de la trayectoria circular, 5 segundos)
+    abb::egm::wrapper::trajectory::PointGoal* initial_point = combined_trajectory.add_points();
     for (size_t i = 0; i < first_joint_pos.size(); ++i) {
         initial_point->mutable_robot()->mutable_joints()->mutable_position()->add_values(first_joint_pos[i]);
     }
-    initial_point->set_duration(5.0); // Asignar una duración para alcanzar el primer punto
+    initial_point->set_duration(5.0);
 
-    std::cout << "Moviendo al primer punto...\n";
-    egm_interface.addTrajectory(initial_trajectory);
-
-    // Espera a que la ejecución de la trayectoria termine 
-    abb::egm::wrapper::trajectory::ExecutionProgress execution_progress;
-    bool wait = true;
-    while (wait) {
-        std::this_thread::sleep_for(std::chrono::milliseconds(500));
-        if (egm_interface.retrieveExecutionProgress(&execution_progress)) {
-            wait = execution_progress.goal_active();// goal_active() devuelve true si la trayectoria aún está en curso, y false si ha terminado. Esto actualiza la variable wait, permitiendo que el bucle finalice cuando la ejecución de la trayectoria haya terminado
-        }
+    // Añadir todos los puntos de la trayectoria circular a continuación
+    for (int p = 0; p < this->trajectory.points_size(); ++p) {
+        combined_trajectory.add_points()->CopyFrom(this->trajectory.points(p));
     }
+
+    std::cout << "[DEBUG] Trayectoria combinada: " << combined_trajectory.points_size()
+              << " puntos (1 inicial + " << this->trajectory.points_size() << " circulares)\n";
+    std::cout << "Moviendo al primer punto y ejecutando trayectoria circular...\n";
+    std::cout.flush();
+
+    // Encolar en un único addTrajectory
+    egm_interface.addTrajectory(combined_trajectory);
+
+    // Esperar ~5.5 segundos a que el robot alcance el primer punto (duración=5.0s)
+    // Usamos tiempo fijo porque goal_active() no distingue entre primer punto y trayectoria circular
+    std::cout << "[DEBUG] Esperando que el robot llegue al primer punto (5.5s)...\n";
+    std::cout.flush();
+    std::this_thread::sleep_for(std::chrono::milliseconds(5500));
     std::cout << "Robot alcanzó el primer punto.\n";
-     // Crear un hilo para ejecutar io_service
-    thread_group.create_thread(boost::bind(&boost::asio::io_service::run, &io_service));
-    // Verifica que el robot esté conectado antes de enviar la trayectoria
-    while (!egm_interface.isConnected()) {
-        std::this_thread::sleep_for(std::chrono::milliseconds(500));
-    }
-    
-    //Activamos la cámara
-    sceneReconstruction.resume(); 
 
-    //Para activar los dos modos de funcionamiento
+    // Activamos la cámara solo si YARP está conectado (evita bloqueo en RPC)
+    if (yarp_ok)
+    {
+        std::cout << "[DEBUG] Llamando sceneReconstruction.resume()...\n";
+        std::cout.flush();
+        sceneReconstruction.resume();
+        std::cout << "[DEBUG] sceneReconstruction.resume() retornó\n";
+        std::cout.flush();
+    }
+    else
+    {
+        std::cout << "[DEBUG] YARP no conectado, omitiendo resume()\n";
+        std::cout.flush();
+    }
+
+    // Esperar a que la trayectoria circular (ya en ejecución) termine
     if (std::abs(angle) == 360 || (std::abs(angle) == 180 && modo_180 == 1)) {
         Simultaneo(egm_interface, serial, angle, turning_time);
     } else if (std::abs(angle) == 180 && modo_180 == 2) {
@@ -277,7 +335,14 @@ bool Robot::handleExecute(double speed_,double radius_) {
     }
 
     // Pausamos la reconstrucción al terminar
-    sceneReconstruction.pause(); 
+    if (yarp_ok)
+    {
+        std::cout << "[DEBUG] Llamando sceneReconstruction.pause()...\n";
+        std::cout.flush();
+        sceneReconstruction.pause();
+        std::cout << "[DEBUG] sceneReconstruction.pause() retornó\n";
+        std::cout.flush();
+    }
 
     // Lectura final de respuesta del Arduino
     if (arduino_ok) {
@@ -290,7 +355,8 @@ bool Robot::handleExecute(double speed_,double radius_) {
         serial.close();
     }
 
-    // APAGADO LIMPIO
+    // APAGADO LIMPIO: liberar io_work primero para que io_service.run() pueda retornar
+    io_work.reset();
     io_service.stop();
     thread_group.join_all();
    

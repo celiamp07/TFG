@@ -1,0 +1,80 @@
+MODULE Module1
+    ! Variables y configuracin inicial
+    ! Identifier for the EGM correction
+    LOCAL VAR egmident egm_id;
+    ! The work object. Base Frame
+    LOCAL PERS wobjdata egm_wobj := [FALSE,TRUE,"",[[0,0,0],[1,0,0,0]],[[0,0,0],[1,0,0,0]]];
+    ! Limits for convergence
+    ! Orientation: +-0.1 degrees
+    LOCAL CONST egm_minmax egm_condition_orient := [-0.1, 0.1];
+    
+    ! EGM pose frames.
+    !LOCAL CONST pose egm_correction_frame := [[0, 0, 0], [1, 0, 0, 0]];
+    !LOCAL CONST pose egm_sensor_frame     := [[0, 0, 0], [1, 0, 0, 0]];
+    
+    ! Description:                                         !
+    ! Externally Guided motion (EGM): Control - Main Cycle !
+    ! Procedimiento principal 
+    PROC Main()
+        WHILE TRUE DO
+            ! Move to the starting position
+            MoveAbsJ [[0,0,0,0,0,0],[9E+09,9E+09,9E+09,9E+09,9E+09,9E+09]], v100, fine, tool0\WObj:=wobj0;
+           
+            ! EGM Joint Orientation Control
+            ! Iniciar la comunicacin EGM para la trayectoria
+            EGM_JOINT_CONTROL; !Llama al procedimiento para el control de las articulaciones usando EGM
+        ENDWHILE
+    ENDPROC
+    
+    ! Control EGM
+   PROC EGM_JOINT_CONTROL()
+    VAR egmstate estado_egm;
+    VAR jointtarget articulaciones_recibidas;
+    VAR num contr_bucle := 0;
+
+    EGMReset egm_id;
+    EGMGetId egm_id;
+    
+    ! Inicializamos en modo Joint
+    EGMSetupUC ROB_1, egm_id, "default", "ROB_1", \Joint;
+    
+    EGMActJoint egm_id
+                \J1:=egm_condition_orient
+                \J2:=egm_condition_orient
+                \J3:=egm_condition_orient
+                \J4:=egm_condition_orient
+                \J5:=egm_condition_orient
+                \J6:=egm_condition_orient
+                \MaxSpeedDeviation:=20.0;
+
+    ! Arrancamos el flujo de EGM
+    EGMRunJoint egm_id, EGM_STOP_HOLD, \J1 \J2 \J3 \J4 \J5 \J6 \CondTime:=60 \RampOutTime:=10;
+
+    ! BUCLE DE MONITOREO EN TIEMPO REAL
+    ! Mientras EGM esté activo y conectado, leeremos lo que envía C++
+    estado_egm := EGMGetState(egm_id);
+    
+    WHILE estado_egm = EGM_STATE_RUNNING OR estado_egm = EGM_STATE_CONNECTED DO
+        
+        ! 1. La instrucción correcta para leer el buffer de EGM
+        EGMGetTarget egm_id \Joint:=articulaciones_recibidas;
+        
+        ! 2. Filtro de impresión para no saturar la terminal
+        contr_bucle := contr_bucle + 1;
+        IF contr_bucle >= 10 THEN
+            TPWrite "EGM C++ -> J1:" + ValToStr(articulaciones_recibidas.robax.rax_1) 
+                    + " J2:" + ValToStr(articulaciones_recibidas.robax.rax_2)
+                    + " J3:" + ValToStr(articulaciones_recibidas.robax.rax_3);
+            TPWrite "          J4:" + ValToStr(articulaciones_recibidas.robax.rax_4) 
+                    + " J5:" + ValToStr(articulaciones_recibidas.robax.rax_5)
+                    + " J6:" + ValToStr(articulaciones_recibidas.robax.rax_6);
+            contr_bucle := 0;
+        ENDIF
+        
+        WaitTime 0.05;
+        estado_egm := EGMGetState(egm_id);
+    ENDWHILE
+
+    EGMReset egm_id;
+ENDPROC
+ENDMODULE
