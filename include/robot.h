@@ -29,7 +29,7 @@ class Robot {
         Robot(const std::string& RobotFile);
 
         // Función para manejar la ejecución del movimiento del robot
-        bool handleExecute(double speed_, double radius_);
+        bool handleExecute(double speed_, double radius_, std::vector<double> initial_joint_positions);
         bool Simultaneo(abb::egm::EGMTrajectoryInterface& egm_interface, boost::asio::serial_port& serial,int angle, int turning_time);
         bool Secuencial(abb::egm::EGMTrajectoryInterface& egm_interface, boost::asio::serial_port& serial,int angle, int turning_time);
 

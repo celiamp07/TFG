@@ -129,7 +129,7 @@ int main(int argc, char** argv) {
             MyRobot.handlePlotJoints(MyTrajectory, debug, vm["plot_joints"].as<std::string>());
         }
 
-        if (vm.count("execute")) MyRobot.handleExecute(MyTrajectory.getSpeed(), MyTrajectory.getRadius());       
+        if (vm.count("execute")) MyRobot.handleExecute(MyTrajectory.getSpeed(), MyTrajectory.getRadius(), MyTrajectory.getInitialJointPositions());       
 
     } catch (std::exception& e) {
         std::cerr << "Error: " << e.what() << "\n";

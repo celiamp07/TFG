@@ -131,7 +131,7 @@ bool Robot::Secuencial(abb::egm::EGMTrajectoryInterface& egm_interface, boost::a
 }
 
 //Función que conecta con el robot
-bool Robot::handleExecute(double speed_,double radius_) {
+bool Robot::handleExecute(double speed_,double radius_, std::vector<double> initial_joint_positions) {
     int angle = 0;
     double velocidad_robot = speed_; // En mm/s
     const float radio_circun = radius_;
@@ -236,6 +236,36 @@ bool Robot::handleExecute(double speed_,double radius_) {
         std::this_thread::sleep_for(std::chrono::milliseconds(500));// Si no está conectado, el hilo descansa durante 500 ms antes de volver a verificar
     }
 
+    // Mover al punto de seguridad antes de iniciar la trayectoria
+    std::vector<double> security_pos = initial_joint_positions;
+    abb::egm::wrapper::trajectory::TrajectoryGoal security_trajectory;
+    abb::egm::wrapper::trajectory::PointGoal* security_point = security_trajectory.add_points();
+
+    for (size_t i = 0; i < security_pos.size(); ++i) {
+        security_point->mutable_robot()->mutable_joints()->mutable_position()->add_values(security_pos[i]);
+    }
+    security_point->set_duration(5.0); // Asignar una duración para alcanzar el punto de seguridad
+
+    std::cout << "Moviendo al punto de seguridad...\n";
+    egm_interface.addTrajectory(security_trajectory);
+
+    // Espera a que la ejecución de la trayectoria termine 
+    abb::egm::wrapper::trajectory::ExecutionProgress execution_progress1;
+    bool wait1 = true;
+    while (wait1) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(500));
+        if (egm_interface.retrieveExecutionProgress(&execution_progress1)) {
+            wait1 = execution_progress1.goal_active();// goal_active() devuelve true si la trayectoria aún está en curso, y false si ha terminado. Esto actualiza la variable wait, permitiendo que el bucle finalice cuando la ejecución de la trayectoria haya terminado
+        }
+    }
+    std::cout << "Robot alcanzó el punto de seguridad.\n";
+     // Crear un hilo para ejecutar io_service
+    thread_group.create_thread(boost::bind(&boost::asio::io_service::run, &io_service));
+    // Verifica que el robot esté conectado antes de enviar la trayectoria
+    while (!egm_interface.isConnected()) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    }
+
     // Mover al primer punto
     std::vector<double> first_joint_pos = jointTrajectory[0];
     abb::egm::wrapper::trajectory::TrajectoryGoal initial_trajectory;
@@ -265,7 +295,7 @@ bool Robot::handleExecute(double speed_,double radius_) {
     while (!egm_interface.isConnected()) {
         std::this_thread::sleep_for(std::chrono::milliseconds(500));
     }
-    
+
     //Activamos la cámara
     sceneReconstruction.resume(); 
 
